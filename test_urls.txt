@@ -1,6 +1,8 @@
-https://www.example.com
-https://httpbin.org
-https://www.google.com
-https://www.github.com
-https://www.linkedin.com/company/microsoft
-https://www.facebook.com/meta 
+https://www.contact.com
+https://www.about.com
+https://www.contactus.com
+https://www.contactpage.com
+https://www.contact-info.com
+https://www.contact-form.com
+https://www.contact-details.com
+https://www.contact-information.com 

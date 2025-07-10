@@ -1,97 +1,357 @@
 import streamlit as st
 import tempfile
 import os
+import pandas as pd
 from pathlib import Path
 from main import EmailScraper
+import time
 
-st.set_page_config(page_title="Email Scraper Tool", layout="centered")
-st.title("📧 Email Scraper Tool")
-st.markdown("""
-A powerful tool to extract emails from websites and social media. Upload a file with URLs and configure your scraping options below.
-""")
+def combine_results(all_results):
+    """Combine results from multiple files."""
+    combined = {
+        'total_urls_processed': 0,
+        'successful_scrapes': 0,
+        'failed_scrapes': 0,
+        'total_emails_found': 0,
+        'unique_emails_found': 0,
+        'success_rate': 0,
+        'detailed_results': [],
+        'output_files': {}
+    }
+    
+    all_emails = set()
+    
+    for result in all_results:
+        combined['total_urls_processed'] += result.get('total_urls_processed', 0)
+        combined['successful_scrapes'] += result.get('successful_scrapes', 0)
+        combined['failed_scrapes'] += result.get('failed_scrapes', 0)
+        
+        # Collect emails
+        for detail_result in result.get('detailed_results', []):
+            combined['detailed_results'].append(detail_result)
+            for email in detail_result.get('emails', []):
+                all_emails.add(email)
+    
+    combined['total_emails_found'] = len(all_emails)
+    combined['unique_emails_found'] = len(all_emails)
+    
+    if combined['total_urls_processed'] > 0:
+        combined['success_rate'] = (combined['successful_scrapes'] / combined['total_urls_processed']) * 100
+    
+    return combined
 
-# --- Sidebar options ---
-st.sidebar.header("Scraping Options")
-use_selenium = st.sidebar.checkbox("Use Selenium (for dynamic sites)", value=False)
-use_proxies = st.sidebar.checkbox("Use Proxy Rotation", value=False)
-use_social = st.sidebar.checkbox("Scrape Social Media", value=True)
-max_internal = st.sidebar.slider("Max Internal Pages", 1, 10, 3)
-output_format = st.sidebar.selectbox("Output Format", ["csv", "excel", "both"], index=1)
-
-# --- File uploader ---
-st.subheader("1. Upload a file with URLs")
-file = st.file_uploader(
-    "Upload .csv, .xlsx, .xls, .txt, or .docx file",
-    type=["csv", "xlsx", "xls", "txt", "docx"]
+# Page configuration
+st.set_page_config(
+    page_title="📧 Email Scraper Tool",
+    page_icon="📧",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-if file:
-    st.success(f"Uploaded: {file.name}")
-    # Save to a temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.name).suffix) as tmp:
-        tmp.write(file.read())
-        tmp_path = tmp.name
-else:
-    tmp_path = None
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #1f77b4;
+    }
+    .success-message {
+        background-color: #d4edda;
+        color: #155724;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid #c3e6cb;
+    }
+    .error-message {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid #f5c6cb;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# --- Scrape button ---
-if st.button("Start Scraping", disabled=not file):
-    if not tmp_path:
-        st.error("Please upload a file to begin.")
-    else:
-        st.info("Scraping in progress... This may take a few minutes.")
-        progress = st.progress(0)
-        status_placeholder = st.empty()
-        results = None
-        try:
-            with EmailScraper(
-                use_selenium=use_selenium,
-                use_proxies=use_proxies,
-                use_social_scraping=use_social,
-                max_internal_pages=max_internal,
-                output_format=output_format
-            ) as scraper:
-                # Run scraping
-                results = scraper.scrape_from_file(tmp_path)
-                progress.progress(100)
-                status_placeholder.success("Scraping complete!")
-        except Exception as e:
-            st.error(f"Error: {e}")
-            status_placeholder.error("Scraping failed.")
-            results = None
+# Main header
+st.markdown('<h1 class="main-header">📧 Email Scraper Tool</h1>', unsafe_allow_html=True)
+st.markdown("""
+<div style="text-align: center; margin-bottom: 2rem;">
+    <p style="font-size: 1.1rem; color: #666;">
+        Extract emails from websites and social media profiles. Upload files with URLs and get comprehensive results.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# Sidebar configuration
+with st.sidebar:
+    st.header("⚙️ Scraping Configuration")
+    
+    # Scraping options
+    st.subheader("Options")
+    use_selenium = st.checkbox("Use Selenium (for dynamic sites)", value=True, 
+                              help="Enable for JavaScript-heavy websites")
+    use_proxies = st.checkbox("Use Proxy Rotation", value=False,
+                             help="Use proxy servers to avoid rate limiting")
+    use_social = st.checkbox("Scrape Social Media", value=True,
+                            help="Extract emails from social media profiles")
+    max_internal = st.slider("Max Internal Pages", 1, 10, 3,
+                            help="Number of internal pages to scrape per URL")
+    output_format = st.selectbox("Output Format", ["csv", "excel", "both"], index=1)
+    
+    # Advanced options
+    st.subheader("Advanced")
+    timeout = st.slider("Request Timeout (seconds)", 10, 60, 30)
+    delay = st.slider("Delay between requests (seconds)", 0.5, 3.0, 1.0, 0.1)
+    
+    st.markdown("---")
+    st.markdown("**Tips:**")
+    st.markdown("- Use Selenium for modern websites")
+    st.markdown("- Enable proxies for large-scale scraping")
+    st.markdown("- Higher delays reduce detection risk")
+
+# Main content area
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    st.header("📁 Upload Files")
+    
+    # File uploader
+    uploaded_files = st.file_uploader(
+        "Upload files with URLs (.csv, .xlsx, .xls, .txt, .docx)",
+        type=["csv", "xlsx", "xls", "txt", "docx"],
+        accept_multiple_files=True,
+        help="You can upload multiple files at once"
+    )
+    
+    if uploaded_files:
+        st.success(f"✅ Uploaded {len(uploaded_files)} file(s)")
         
-        # --- Show summary ---
-        if results:
-            st.subheader("2. Results Summary")
-            st.write(f"**Total URLs processed:** {results['total_urls_processed']}")
-            st.write(f"**Successful scrapes:** {results['successful_scrapes']}")
-            st.write(f"**Failed scrapes:** {results['failed_scrapes']}")
-            st.write(f"**Unique emails found:** {results['unique_emails_found']}")
-            st.write(f"**Success rate:** {results['success_rate']:.2f}%")
-            
-            # --- Download buttons ---
-            st.subheader("3. Download Results")
-            output_files = results.get('output_files', {})
-            for label, path in output_files.items():
-                if os.path.exists(path):
-                    with open(path, "rb") as f:
-                        file_bytes = f.read()
-                        ext = Path(path).suffix
-                        if ext == ".csv":
-                            mime = "text/csv"
-                        elif ext in [".xlsx", ".xls"]:
-                            mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        elif ext == ".txt":
-                            mime = "text/plain"
-                        else:
-                            mime = "application/octet-stream"
-                        st.download_button(
-                            label=f"Download {label.upper()} ({Path(path).name})",
-                            data=file_bytes,
-                            file_name=Path(path).name,
-                            mime=mime
-                        )
-            st.success("All done! You can now download your results.")
+        # Show file details
+        file_details = []
+        for file in uploaded_files:
+            file_details.append({
+                "Filename": file.name,
+                "Size": f"{file.size / 1024:.1f} KB",
+                "Type": file.type or "Unknown"
+            })
+        
+        st.subheader("📋 File Details")
+        st.dataframe(pd.DataFrame(file_details), use_container_width=True)
 
+        # --- File Preview Section ---
+        st.subheader("👀 File Preview")
+        for file in uploaded_files:
+            st.markdown(f"**{file.name}**")
+            try:
+                if file.name.endswith('.csv'):
+                    df = pd.read_csv(file, nrows=10)
+                    st.dataframe(df, use_container_width=True)
+                elif file.name.endswith('.xlsx') or file.name.endswith('.xls'):
+                    df = pd.read_excel(file, nrows=10)
+                    st.dataframe(df, use_container_width=True)
+                elif file.name.endswith('.txt'):
+                    content = file.read().decode('utf-8', errors='ignore').splitlines()
+                    preview = '\n'.join(content[:10])
+                    st.text(preview)
+                elif file.name.endswith('.docx'):
+                    from docx import Document
+                    import io
+                    doc = Document(io.BytesIO(file.read()))
+                    text = '\n'.join([para.text for para in doc.paragraphs][:10])
+                    st.text(text)
+                else:
+                    st.warning("Unsupported file type for preview.")
+            except Exception as e:
+                st.error(f"Preview failed: {e}")
+
+with col2:
+    st.header("🚀 Start Scraping")
+    
+    if uploaded_files:
+        if st.button("🔍 Start Email Scraping", type="primary", use_container_width=True):
+            # Initialize session state
+            if 'scraping_results' not in st.session_state:
+                st.session_state.scraping_results = None
+            if 'scraping_complete' not in st.session_state:
+                st.session_state.scraping_complete = False
+            
+            # Create progress container
+            progress_container = st.container()
+            status_container = st.container()
+            results_container = st.container()
+            
+            with progress_container:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+            
+            try:
+                # Process each uploaded file
+                all_results = []
+                total_files = len(uploaded_files)
+                
+                for file_idx, uploaded_file in enumerate(uploaded_files):
+                    # Update progress
+                    progress = (file_idx / total_files) * 100
+                    progress_bar.progress(progress)
+                    status_text.text(f"Processing file {file_idx + 1}/{total_files}: {uploaded_file.name}")
+                    
+                    # Save uploaded file to temp location
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp:
+                        tmp.write(uploaded_file.read())
+                        tmp_path = tmp.name
+                    
+                    try:
+                        # Initialize scraper
+                        with EmailScraper(
+                            use_selenium=use_selenium,
+                            use_proxies=use_proxies,
+                            use_social_scraping=use_social,
+                            max_internal_pages=max_internal,
+                            output_format=output_format
+                        ) as scraper:
+                            # Scrape emails
+                            file_results = scraper.scrape_from_file(tmp_path)
+                            all_results.append(file_results)
+                            
+                            # Add delay between files
+                            time.sleep(delay)
+                    
+                    finally:
+                        # Clean up temp file
+                        if os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
+                
+                # Combine results
+                combined_results = combine_results(all_results)
+                st.session_state.scraping_results = combined_results
+                st.session_state.scraping_complete = True
+                
+                # Update progress
+                progress_bar.progress(100)
+                status_text.text("✅ Scraping completed successfully!")
+                
+            except Exception as e:
+                st.error(f"❌ Error during scraping: {str(e)}")
+                status_text.text("❌ Scraping failed")
+                st.session_state.scraping_complete = False
+
+# Display results
+if st.session_state.get('scraping_complete', False) and st.session_state.get('scraping_results'):
+    results = st.session_state.scraping_results
+    
+    if results is not None:
+        st.markdown("---")
+        st.header("📊 Scraping Results")
+        
+        # Metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total URLs", results.get('total_urls_processed', 0))
+        
+        with col2:
+            st.metric("Successful", results.get('successful_scrapes', 0))
+        
+        with col3:
+            st.metric("Unique Emails", results.get('unique_emails_found', 0))
+        
+        with col4:
+            st.metric("Success Rate", f"{results.get('success_rate', 0):.1f}%")
+        
+        # Display emails in a table
+        if results.get('unique_emails_found', 0) > 0:
+            st.subheader("📧 Extracted Emails")
+            
+            # Create email table
+            email_data = []
+            for result in results.get('detailed_results', []):
+                if result is not None:
+                    for email in result.get('emails', []):
+                        email_data.append({
+                            'Email': email,
+                            'Source URL': result.get('url', ''),
+                            'Source Page': result.get('source_page', ''),
+                            'Status': result.get('status', ''),
+                            'Source Type': result.get('source_type', '')
+                        })
+        
+        if email_data:
+            df = pd.DataFrame(email_data)
+            st.dataframe(df, use_container_width=True)
+            
+            # Download options
+            st.subheader("💾 Download Results")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # CSV download
+                csv_data = df.to_csv(index=False)
+                st.download_button(
+                    label="📄 Download CSV",
+                    data=csv_data,
+                    file_name="extracted_emails.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            
+            with col2:
+                # Excel download
+                try:
+                    excel_buffer = pd.ExcelWriter('temp_emails.xlsx', engine='openpyxl')
+                    df.to_excel(excel_buffer, index=False, sheet_name='Emails')
+                    excel_buffer.close()
+                    
+                    with open('temp_emails.xlsx', 'rb') as f:
+                        excel_data = f.read()
+                    
+                    st.download_button(
+                        label="📊 Download Excel",
+                        data=excel_data,
+                        file_name="extracted_emails.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                    
+                    # Clean up temp file
+                    if os.path.exists('temp_emails.xlsx'):
+                        os.unlink('temp_emails.xlsx')
+                        
+                except Exception as e:
+                    st.error(f"Excel export failed: {e}")
+            
+            with col3:
+                # Text download
+                text_data = "\n".join([f"{row['Email']} - {row['Source URL']}" for _, row in df.iterrows()])
+                st.download_button(
+                    label="📝 Download Text",
+                    data=text_data,
+                    file_name="extracted_emails.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+    
+    else:
+        st.warning("⚠️ No emails found. Try enabling Selenium or checking your URLs.")
+    
+    # Show detailed results
+    with st.expander("🔍 Detailed Results"):
+        st.json(results)
+
+# Footer
 st.markdown("---")
-st.caption("Developed with ❤️ using Streamlit and Python. | [GitHub](#)") 
+st.markdown("""
+<div style="text-align: center; color: #666; padding: 1rem;">
+    <p>Developed with ❤️ using Streamlit and Python</p>
+    <p><a href="https://github.com/Ahmed7501/Email-scrapping-tool" target="_blank">View on GitHub</a></p>
+</div>
+""", unsafe_allow_html=True) 

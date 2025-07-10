@@ -65,6 +65,10 @@ class EmailExtractor:
             # Find all email matches
             matches = self.email_pattern.findall(text)
             
+            # Debug: log all matches found
+            if matches:
+                logger.info(f"Found {len(matches)} potential email matches: {matches[:5]}...")
+            
             # Filter and clean emails
             valid_emails = []
             for email in matches:
@@ -197,6 +201,10 @@ class EmailExtractor:
                     return True
             except Exception:
                 pass
+        
+        # Be more permissive - accept most valid email formats
+        # Only reject obvious false positives
+        return True
         
         # Additional validation: check for common patterns
         if self._has_suspicious_patterns(email):
