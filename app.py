@@ -293,7 +293,22 @@ if st.session_state.get('scraping_complete', False) and st.session_state.get('sc
         with col4:
             st.metric("Success Rate", f"{results.get('success_rate', 0):.1f}%")
         
-        # Display emails in a table
+        # Debug: Show how many emails were found per URL
+        debug_rows = []
+        for result in results.get('detailed_results', []):
+            url = result.get('url', '')
+            emails = result.get('emails', [])
+            debug_rows.append({
+                'URL': url,
+                'Emails Found': len(emails),
+                'Status': result.get('status', ''),
+                'Error': result.get('error', '')
+            })
+        if debug_rows:
+            st.subheader("🔎 Email Extraction Debug Summary")
+            st.dataframe(pd.DataFrame(debug_rows), use_container_width=True)
+        
+        # Display emails in a table (always show URL and Email columns)
         email_data = []
         for result in results.get('detailed_results', []):
             if result is not None:
@@ -318,61 +333,24 @@ if st.session_state.get('scraping_complete', False) and st.session_state.get('sc
                     })
         if email_data:
             df = pd.DataFrame(email_data)
+            st.subheader("📧 Extracted Emails Table")
             st.dataframe(df, use_container_width=True)
         else:
-            st.warning("No emails found for the provided URLs.")
-            
-            # Download options
-            st.subheader("💾 Download Results")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                # CSV download
-                csv_data = df.to_csv(index=False)
-                st.download_button(
-                    label="📄 Download CSV",
-                    data=csv_data,
-                    file_name="extracted_emails.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-            
-            with col2:
-                # Excel download
-                try:
-                    excel_buffer = pd.ExcelWriter('temp_emails.xlsx', engine='openpyxl')
-                    df.to_excel(excel_buffer, index=False, sheet_name='Emails')
-                    excel_buffer.close()
-                    
-                    with open('temp_emails.xlsx', 'rb') as f:
-                        excel_data = f.read()
-                    
-                    st.download_button(
-                        label="📊 Download Excel",
-                        data=excel_data,
-                        file_name="extracted_emails.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-                    
-                    # Clean up temp file
-                    if os.path.exists('temp_emails.xlsx'):
-                        os.unlink('temp_emails.xlsx')
-                        
-                except Exception as e:
-                    st.error(f"Excel export failed: {e}")
-            
-            with col3:
-                # Text download
-                text_data = "\n".join([f"{row['Email']} - {row['Source URL']}" for _, row in df.iterrows()])
-                st.download_button(
-                    label="📝 Download Text",
-                    data=text_data,
-                    file_name="extracted_emails.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
+            st.warning("No emails found for the provided URLs. This may be due to:")
+            st.markdown("- No emails present on the page\n- Emails protected by JavaScript or Cloudflare\n- Emails are images or obfuscated")
+            # Still show empty table for download
+            df = pd.DataFrame(email_data, columns=['URL', 'Email', 'Source Page', 'Status', 'Source Type'])
+            st.dataframe(df, use_container_width=True)
+        # Download CSV button (always shown)
+        st.subheader("💾 Download Results")
+        csv_data = df.to_csv(index=False)
+        st.download_button(
+            label="📄 Download CSV",
+            data=csv_data,
+            file_name="extracted_emails.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
     
     else:
         st.warning("⚠️ No emails found. Try enabling Selenium or checking your URLs.")
