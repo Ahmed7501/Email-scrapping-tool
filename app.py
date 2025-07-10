@@ -156,8 +156,11 @@ with col1:
                     df = pd.read_csv(file, nrows=10)
                     st.dataframe(df, use_container_width=True)
                 elif file.name.endswith('.xlsx') or file.name.endswith('.xls'):
-                    df = pd.read_excel(file, nrows=10)
-                    st.dataframe(df, use_container_width=True)
+                    try:
+                        df = pd.read_excel(file, engine='openpyxl', nrows=10)
+                        st.dataframe(df, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Excel preview failed: {e}")
                 elif file.name.endswith('.txt'):
                     content = file.read().decode('utf-8', errors='ignore').splitlines()
                     preview = '\n'.join(content[:10])
@@ -268,11 +271,11 @@ if st.session_state.get('scraping_complete', False) and st.session_state.get('sc
             st.metric("Success Rate", f"{results.get('success_rate', 0):.1f}%")
         
         # Display emails in a table
+        email_data = []
         if results.get('unique_emails_found', 0) > 0:
             st.subheader("📧 Extracted Emails")
             
             # Create email table
-            email_data = []
             for result in results.get('detailed_results', []):
                 if result is not None:
                     for email in result.get('emails', []):
@@ -283,7 +286,6 @@ if st.session_state.get('scraping_complete', False) and st.session_state.get('sc
                             'Status': result.get('status', ''),
                             'Source Type': result.get('source_type', '')
                         })
-        
         if email_data:
             df = pd.DataFrame(email_data)
             st.dataframe(df, use_container_width=True)
