@@ -6,6 +6,15 @@ from pathlib import Path
 from main import EmailScraper
 import time
 
+# Check for undetected_chromedriver availability
+try:
+    import undetected_chromedriver
+except ImportError:
+    st.error("undetected-chromedriver is not installed or not supported in this environment.\n"
+             "This tool requires a real browser and will only work on your local machine, not on Streamlit Cloud.\n"
+             "For Google-protected or JavaScript-heavy sites, please run this tool locally.")
+    st.stop()
+
 def combine_results(all_results):
     """Combine results from multiple files."""
     combined = {
