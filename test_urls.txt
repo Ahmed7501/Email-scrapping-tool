@@ -1,0 +1,6 @@
+https://www.example.com
+https://httpbin.org
+https://www.google.com
+https://www.github.com
+https://www.linkedin.com/company/microsoft
+https://www.facebook.com/meta 
