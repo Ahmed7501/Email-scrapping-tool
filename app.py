@@ -353,7 +353,7 @@ if st.session_state.get('scraping_complete', False) and st.session_state.get('sc
             st.warning("No emails found for the provided URLs. This may be due to:")
             st.markdown("- No emails present on the page\n- Emails protected by JavaScript or Cloudflare\n- Emails are images or obfuscated")
             # Still show empty table for download
-            df = pd.DataFrame(email_data, columns=['URL', 'Email', 'Source Page', 'Status', 'Source Type'])
+            df = pd.DataFrame([], columns=['URL', 'Email', 'Source Page', 'Status', 'Source Type'])
             st.dataframe(df, use_container_width=True)
         # Download CSV and Excel buttons (always shown)
         st.subheader("💾 Download Results")
@@ -368,9 +368,9 @@ if st.session_state.get('scraping_complete', False) and st.session_state.get('sc
         # Excel download
         try:
             import io
-            import pandas as pd
             excel_buffer = io.BytesIO()
-            df.to_excel(excel_buffer, index=False, sheet_name='Emails')
+            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Emails')
             excel_data = excel_buffer.getvalue()
             st.download_button(
                 label="📊 Download Excel",
