@@ -1,4 +1,5 @@
 python==3.10.13
+setuptools
 undetected-chromedriver
 selenium
 pandas
