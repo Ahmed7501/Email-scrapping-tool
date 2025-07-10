@@ -149,16 +149,20 @@ with col1:
 
         # --- File Preview Section ---
         st.subheader("👀 File Preview")
+        url_column_choices = {}
         for file in uploaded_files:
             st.markdown(f"**{file.name}**")
             try:
+                file.seek(0)
                 if file.name.endswith('.csv'):
                     df = pd.read_csv(file, nrows=10)
                     st.dataframe(df, use_container_width=True)
+                    url_column_choices[file.name] = list(df.columns)
                 elif file.name.endswith('.xlsx') or file.name.endswith('.xls'):
                     try:
                         df = pd.read_excel(file, engine='openpyxl', nrows=10)
                         st.dataframe(df, use_container_width=True)
+                        url_column_choices[file.name] = list(df.columns)
                     except Exception as e:
                         st.error(f"Excel preview failed: {e}")
                 elif file.name.endswith('.txt'):
@@ -175,6 +179,50 @@ with col1:
                     st.warning("Unsupported file type for preview.")
             except Exception as e:
                 st.error(f"Preview failed: {e}")
+        # Let user select URL column for each Excel/CSV file
+        url_column_selection = {}
+        for file in uploaded_files:
+            if file.name.endswith('.csv') or file.name.endswith('.xlsx') or file.name.endswith('.xls'):
+                columns = url_column_choices.get(file.name, [])
+                if columns:
+                    url_column_selection[file.name] = st.selectbox(f"Select URL column for {file.name}", columns, key=f"urlcol_{file.name}")
+
+        # Before scraping, show extracted URLs for debug
+        extracted_urls = []
+        url_extraction_map = {}  # Map file name to list of URLs for scraping
+        for file in uploaded_files:
+            file.seek(0)
+            try:
+                if file.name.endswith('.csv'):
+                    df = pd.read_csv(file)
+                    col = url_column_selection.get(file.name, df.columns[0])
+                    urls = df[col].dropna().astype(str).tolist()
+                    extracted_urls.extend(urls)
+                    url_extraction_map[file.name] = urls
+                elif file.name.endswith('.xlsx') or file.name.endswith('.xls'):
+                    df = pd.read_excel(file, engine='openpyxl')
+                    col = url_column_selection.get(file.name, df.columns[0])
+                    urls = df[col].dropna().astype(str).tolist()
+                    extracted_urls.extend(urls)
+                    url_extraction_map[file.name] = urls
+                elif file.name.endswith('.txt'):
+                    content = file.read().decode('utf-8', errors='ignore').splitlines()
+                    urls = [line.strip() for line in content if line.strip()]
+                    extracted_urls.extend(urls)
+                    url_extraction_map[file.name] = urls
+                elif file.name.endswith('.docx'):
+                    from docx import Document
+                    import io
+                    doc = Document(io.BytesIO(file.read()))
+                    urls = [para.text.strip() for para in doc.paragraphs if para.text.strip()]
+                    extracted_urls.extend(urls)
+                    url_extraction_map[file.name] = urls
+            except Exception as e:
+                st.error(f"Error extracting URLs from {file.name}: {e}")
+        if extracted_urls:
+            st.info(f"Extracted {len(extracted_urls)} URLs. Example: {extracted_urls[:5]}")
+        else:
+            st.warning("No URLs found in uploaded files.")
 
 with col2:
     st.header("🚀 Start Scraping")
@@ -272,23 +320,32 @@ if st.session_state.get('scraping_complete', False) and st.session_state.get('sc
         
         # Display emails in a table
         email_data = []
-        if results.get('unique_emails_found', 0) > 0:
-            st.subheader("📧 Extracted Emails")
-            
-            # Create email table
-            for result in results.get('detailed_results', []):
-                if result is not None:
-                    for email in result.get('emails', []):
+        for result in results.get('detailed_results', []):
+            if result is not None:
+                url = result.get('url', '')
+                emails = result.get('emails', [])
+                if emails:
+                    for email in emails:
                         email_data.append({
+                            'URL': url,
                             'Email': email,
-                            'Source URL': result.get('url', ''),
                             'Source Page': result.get('source_page', ''),
                             'Status': result.get('status', ''),
                             'Source Type': result.get('source_type', '')
                         })
+                else:
+                    email_data.append({
+                        'URL': url,
+                        'Email': '',
+                        'Source Page': result.get('source_page', ''),
+                        'Status': result.get('status', ''),
+                        'Source Type': result.get('source_type', '')
+                    })
         if email_data:
             df = pd.DataFrame(email_data)
             st.dataframe(df, use_container_width=True)
+        else:
+            st.warning("No emails found for the provided URLs.")
             
             # Download options
             st.subheader("💾 Download Results")
