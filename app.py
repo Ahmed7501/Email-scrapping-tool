@@ -220,7 +220,12 @@ with col1:
             except Exception as e:
                 st.error(f"Error extracting URLs from {file.name}: {e}")
         if extracted_urls:
-            st.info(f"Extracted {len(extracted_urls)} URLs. Example: {extracted_urls[:5]}")
+            st.subheader("🔗 Extracted URLs Preview")
+            st.write(f"Total URLs: {len(extracted_urls)}")
+            for url in extracted_urls[:10]:
+                st.markdown(f"- [{url}]({url})")
+            if len(extracted_urls) > 10:
+                st.markdown(f"...and {len(extracted_urls) - 10} more.")
         else:
             st.warning("No URLs found in uploaded files.")
 
@@ -341,7 +346,7 @@ if st.session_state.get('scraping_complete', False) and st.session_state.get('sc
             # Still show empty table for download
             df = pd.DataFrame(email_data, columns=['URL', 'Email', 'Source Page', 'Status', 'Source Type'])
             st.dataframe(df, use_container_width=True)
-        # Download CSV button (always shown)
+        # Download CSV and Excel buttons (always shown)
         st.subheader("💾 Download Results")
         csv_data = df.to_csv(index=False)
         st.download_button(
@@ -351,6 +356,22 @@ if st.session_state.get('scraping_complete', False) and st.session_state.get('sc
             mime="text/csv",
             use_container_width=True
         )
+        # Excel download
+        try:
+            import io
+            import pandas as pd
+            excel_buffer = io.BytesIO()
+            df.to_excel(excel_buffer, index=False, sheet_name='Emails')
+            excel_data = excel_buffer.getvalue()
+            st.download_button(
+                label="📊 Download Excel",
+                data=excel_data,
+                file_name="extracted_emails.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"Excel export failed: {e}")
     
     else:
         st.warning("⚠️ No emails found. Try enabling Selenium or checking your URLs.")
