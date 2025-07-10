@@ -251,16 +251,7 @@ class EmailExtractor:
 
 
 # Convenience function for quick email extraction
-def extract_emails(text: Optional[str], source_url: Optional[str] = None) -> List[str]:
-    """
-    Convenience function to extract emails from text.
-    
-    Args:
-        text (str): Text content to search
-        source_url (str): Source URL for context
-        
-    Returns:
-        List[str]: List of extracted email addresses
-    """
-    extractor = EmailExtractor()
-    return extractor.extract_emails_from_text(text, source_url) 
+def extract_emails(html):
+    # Robust regex for emails
+    email_regex = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+    return list(set(re.findall(email_regex, html))) 

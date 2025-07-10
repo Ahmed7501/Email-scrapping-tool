@@ -11,12 +11,13 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 # Import our modules
-from file_parser import FileParser
-from scraper import WebScraper
-from email_extractor import EmailExtractor
-from social_scraper import SocialScraper
-from proxy_handler import ProxyHandler
-from output_writer import OutputWriter
+from file_loader import load_urls
+from selenium_scraper import SeleniumScraper
+from email_extractor import extract_emails
+from output_writer import save_results
+from crawler import get_internal_pages
+from proxy_manager import ProxyManager
+import random
 
 # Configure logging
 logging.basicConfig(

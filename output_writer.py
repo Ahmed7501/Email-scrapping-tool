@@ -439,3 +439,14 @@ def write_to_excel(results: List[Dict[str, Any]], filename: str = None) -> str:
     """
     writer = OutputWriter()
     return writer.write_results_to_excel(results, filename) 
+
+import pandas as pd
+
+def save_results(results, filename, filetype='csv'):
+    df = pd.DataFrame(results)
+    if filetype == 'csv':
+        df.to_csv(filename, index=False)
+    elif filetype == 'excel':
+        df.to_excel(filename, index=False)
+    else:
+        raise ValueError('Unsupported filetype') 
