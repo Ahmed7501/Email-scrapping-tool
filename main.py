@@ -140,6 +140,25 @@ class EmailScraper:
             logger.error(f"Error during email scraping: {e}")
             raise
     
+    def scrape_from_urls(self, urls: List[str]) -> Dict[str, Any]:
+        """
+        Scrape emails from a list of URLs (public method).
+        Args:
+            urls (List[str]): List of URLs to scrape
+        Returns:
+            Dict[str, Any]: Summary and output files
+        """
+        results = self._scrape_urls(urls)
+        # Process social links if enabled
+        if self.use_social_scraping:
+            social_results = self._process_social_links(results)
+            results.extend(social_results)
+        # Generate output files
+        output_files = self._generate_outputs(results)
+        # Create summary
+        summary = self._create_summary(results, output_files)
+        return summary
+    
     def _scrape_urls(self, urls: List[str]) -> List[Dict[str, Any]]:
         """
         Scrape emails from a list of URLs.

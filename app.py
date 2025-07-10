@@ -235,7 +235,6 @@ with col2:
             if 'scraping_complete' not in st.session_state:
                 st.session_state.scraping_complete = False
             
-            # Create progress container
             progress_container = st.container()
             status_container = st.container()
             results_container = st.container()
@@ -244,56 +243,32 @@ with col2:
                 progress_bar = st.progress(0)
                 status_text = st.empty()
             
-            try:
-                # Process each uploaded file
-                all_results = []
-                total_files = len(uploaded_files)
-                
-                for file_idx, uploaded_file in enumerate(uploaded_files):
-                    # Update progress
-                    progress = (file_idx / total_files) * 100
-                    progress_bar.progress(progress)
-                    status_text.text(f"Processing file {file_idx + 1}/{total_files}: {uploaded_file.name}")
-                    
-                    # Save uploaded file to temp location
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp:
-                        tmp.write(uploaded_file.read())
-                        tmp_path = tmp.name
-                    
-                    try:
-                        # Initialize scraper
-                        with EmailScraper(
-                            use_selenium=use_selenium,
-                            use_proxies=use_proxies,
-                            use_social_scraping=use_social,
-                            max_internal_pages=max_internal,
-                            output_format=output_format
-                        ) as scraper:
-                            # Scrape emails
-                            file_results = scraper.scrape_from_file(tmp_path)
-                            all_results.append(file_results)
-                            
-                            # Add delay between files
-                            time.sleep(delay)
-                    
-                    finally:
-                        # Clean up temp file
-                        if os.path.exists(tmp_path):
-                            os.unlink(tmp_path)
-                
-                # Combine results
-                combined_results = combine_results(all_results)
-                st.session_state.scraping_results = combined_results
-                st.session_state.scraping_complete = True
-                
-                # Update progress
-                progress_bar.progress(100)
-                status_text.text("✅ Scraping completed successfully!")
-                
-            except Exception as e:
-                st.error(f"❌ Error during scraping: {str(e)}")
-                status_text.text("❌ Scraping failed")
-                st.session_state.scraping_complete = False
+            # Collect all URLs from url_extraction_map
+            all_urls = []
+            for urls in url_extraction_map.values():
+                all_urls.extend(urls)
+            
+            if not all_urls:
+                st.error("No URLs to scrape. Please upload files with valid URLs.")
+            else:
+                try:
+                    with EmailScraper(
+                        use_selenium=use_selenium,
+                        use_proxies=use_proxies,
+                        use_social_scraping=use_social,
+                        max_internal_pages=max_internal,
+                        output_format=output_format
+                    ) as scraper:
+                        # Scrape emails from the list of URLs
+                        results = scraper.scrape_from_urls(all_urls)
+                        progress_bar.progress(100)
+                        status_text.success("Scraping complete!")
+                        st.session_state.scraping_results = results
+                        st.session_state.scraping_complete = True
+                except Exception as e:
+                    st.error(f"Error during scraping: {e}")
+                    status_text.error("Scraping failed.")
+                    st.session_state.scraping_complete = False
 
 # Display results
 if st.session_state.get('scraping_complete', False) and st.session_state.get('scraping_results'):
